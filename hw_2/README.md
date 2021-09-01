@@ -1,11 +1,17 @@
-#ÕýÈ·ÊµÏÖÈý½ÇÐÎÕ¤¸ñ»¯Ëã·¨¡£
-ÒÑÍê³É£¬²Î¿¼ rasterizer.cpp µÄ rasterize_triangle º¯Êý
+# features
+- [x] æ­£ç¡®å®žçŽ°ä¸‰è§’å½¢æ …æ ¼åŒ–ç®—æ³•ã€‚å‚è€ƒ rasterizer.cpp çš„ rasterize_triangle å‡½æ•°
 
-#ÕýÈ·²âÊÔµãÊÇ·ñÔÚÈý½ÇÐÎÄÚ¡£
-ÒÑÍê³É£¬²Î¿¼ rasterizer.cpp µÄ insideTriangle º¯Êý
+- [x] æ­£ç¡®æµ‹è¯•ç‚¹æ˜¯å¦åœ¨ä¸‰è§’å½¢å†…ã€‚å‚è€ƒ rasterizer.cpp çš„ insideTriangle å‡½æ•°
 
-#ÕýÈ·ÊµÏÖ z-buffer Ëã·¨, ½«Èý½ÇÐÎ°´Ë³Ðò»­ÔÚÆÁÄ»ÉÏ¡£
-ÒÑÍê³É£¬²Î¿¼ rasterizer.cpp µÄ rasterize_triangle º¯Êý
+- [x] æ­£ç¡®å®žçŽ° z-buffer ç®—æ³•, å°†ä¸‰è§’å½¢æŒ‰é¡ºåºç”»åœ¨å±å¹•ä¸Šã€‚å‚è€ƒ rasterizer.cpp çš„ rasterize_triangle å‡½æ•°
 
-#ÓÃ super-sampling ´¦Àí Anti-aliasing¡£
-ÒÑÍê³É£¬²Î¿¼ rasterizer.hpp µÄ rasterizer ¹¹Ôìº¯Êý ºÍ frame_buffer º¯Êý
+- [x] ç”¨ super-sampling å¤„ç† Anti-aliasingã€‚å‚è€ƒ rasterizer.hpp çš„ rasterizer æž„é€ å‡½æ•° å’Œ frame_buffer å‡½æ•°
+
+# images
+![](images/ssaa_off.png)
+
+> ssaa off
+
+![](images/ssaa_on.png)
+
+> ssaa on
