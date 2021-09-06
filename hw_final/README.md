@@ -1,5 +1,5 @@
 # feature
-本次作业实现基于快速傅立叶变换(Fast Fourier Transform, FFT)的水体渲染方法的特点是真实感出色，全局可控，细节丰富，但计算量相对较大。
+本次作业实现基于快速傅立叶变换(Fast Fourier Transform, FFT)实现海面的渲染。该方法的特点是真实感出色，全局可控，细节丰富，但计算量相对较大。
 
 - [ ] 次表面散射(SSS)
 
@@ -15,9 +15,11 @@
 
 # development
 ## evironment
-使用了作业8的开发环境。
+```
+sudo sh install.sh
+```
 
-## build and debug
+## build and run
 ```
 // build
 mkdir build 
@@ -25,8 +27,8 @@ cd build
 cmake ..
 make
 
-// bebug(use gl_version 3.3)
-MESA_GL_VERSION_OVERRIDE=3.3 ./fft_water
+// run
+./FFT_water_simulation
 ```
 
 # reference
