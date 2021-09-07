@@ -33,3 +33,4 @@ make
 
 # reference
 [FFT海洋水体渲染学习笔记](https://zhuanlan.zhihu.com/p/335045713) -- Yuumu
+[Unity 基于GPU FFT海洋的实现-理论篇](https://zhuanlan.zhihu.com/p/95482541) -- 稻草人
