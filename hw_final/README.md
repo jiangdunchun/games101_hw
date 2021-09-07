@@ -32,4 +32,8 @@ make
 ```
 
 # reference
-[FFT海洋水体渲染学习笔记](https://zhuanlan.zhihu.com/p/335045713) -- Yuumu
+[FFT海洋水体渲染学习笔记](https://zhuanlan.zhihu.com/p/335045713)
+
+[Unity 基于GPU FFT海洋的实现-理论篇](https://zhuanlan.zhihu.com/p/95482541)
+
+[快速傅立叶变换(FFT)的海面模拟](https://blog.csdn.net/qq_39300235/article/details/103582460)
