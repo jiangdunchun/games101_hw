@@ -14,6 +14,7 @@ using namespace std;
 using namespace glm;
 
 
+// shader
 inline void check_compile_errors(
   GLuint id,
   const string& type,
@@ -81,9 +82,11 @@ void create_shader(const string& vertex_code, const string& fragment_code, GLuin
   glDeleteShader(f_id);
 }
 
+
+// vertex 
 struct vertex {
   vec3 position;
-  vec3 tex_coord;
+  vec2 tex_coord;
   vec3 normal;
   vec3 tangent;
 };
@@ -113,6 +116,36 @@ void create_vertex_buffer(const vector<vertex>& vertices, const vector<unsigned 
   glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*)offsetof(vertex, tangent));
 }
 
+void generate_plane(float x, float z, int x_num, int z_num, vector<vertex>& vertices, vector<unsigned int>& indices) {
+    vec3 ld = vec3(x / -2.0f, 0.0f, z / 2.0f);
+    vec3 normal = vec3(0.0f, 1.0f, 0.0f);
+    vec3 tangent = vec3(1.0f, 0.0f, 0.0f);
+    vec3 bi_tangent = vec3(0.0f, 0.0f, -1.0f);
+    float t_step_x = 1.0f / x_num;
+    float t_step_y = 1.0f / z_num;
+    float p_step_x = x * t_step_x;
+    float p_step_y = -1.0f * z * t_step_y;
+    for (int y = 0; y <= z_num; y++) {
+        for (int x = 0; x <= x_num; x++) {
+            vec3 position = ld + float(x) * vec3(p_step_x, 0.0f, 0.0f) + float(y) * vec3(0.0f, 0.0f, p_step_y);
+            vec2 tex_coord = vec2(float(x) * t_step_x, float(y) * t_step_y);
+            vertices.push_back({ position, tex_coord, normal, tangent});
+        }
+    }
+
+    for (int y = 0; y < z_num; y++) {
+        for (int x = 0; x < x_num; x++) {
+            indices.push_back(y * (x_num + 1) + x);
+            indices.push_back(y * (x_num + 1) + x + 1);
+            indices.push_back((y + 1) * (x_num + 1) + x + 1);
+            indices.push_back(y * (x_num + 1) + x);
+            indices.push_back((y + 1) * (x_num + 1) + x + 1);
+            indices.push_back((y + 1) * (x_num + 1) + x);
+        }
+    }
+}
+
+// texture
 void create_cubemap(const vector<string>& images, GLuint& cubemap) {
     glGenTextures(1, &cubemap);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap);
@@ -133,12 +166,31 @@ void create_cubemap(const vector<string>& images, GLuint& cubemap) {
 
         stbi_image_free(sky_image_data);
     }
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 
-void construct_projection(float zoom, float aspect, float near, float far, mat4& projection) {
-    projection = perspective(radians(zoom), aspect, near, far);
+void create_empty_texture(unsigned int width, unsigned int height, GLuint& texture) {
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexImage2D(
+        GL_TEXTURE_2D, 
+        0, 
+        GL_RGBA16F, 
+        width, 
+        height, 
+        0, 
+        GL_RGBA,
+        GL_FLOAT,
+        nullptr);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);	
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+}
+
+// matrix
+void construct_projection(float zoom, float aspect, float z_near, float z_far, mat4& projection) {
+    projection = perspective(radians(zoom), aspect, z_near, z_far);
 }
 
 void construct_view(vec3 position, vec3 rotation, mat4& view) {
