@@ -204,4 +204,6 @@ void construct_view(vec3 position, vec3 rotation, mat4& view) {
 
     view = lookAt(position, position + normalize(vec3(direct.x, direct.y, direct.z)), normalize(vec3(up.x, up.y, up.z)));
 }
+
+
 #endif
