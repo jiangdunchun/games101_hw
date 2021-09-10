@@ -3,8 +3,7 @@
 
 #include "shader_files.h"
 
-const vec2 wind_dir = vec2(1.0f, 1.0f);
-const float wind_speed = 1.0f;
+const vec2 wind = vec2(1.0f, 1.0f);
 const float wave_height = 2.0f;
 const float water_size_x = 1000.0f;
 const float water_size_z = 1000.0f;
@@ -89,10 +88,9 @@ mat4 view;
 mat4 projection;
 
 GLuint frame_buffer;
-vector<GLuint> frame_attachments = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2};
-GLuint height_spectrumRT;
-GLuint displace_spectrumRT_x;
-GLuint displace_spectrumRT_z;
+GLuint ds_render_buffer;
+vector<GLuint> frame_attachments = {GL_COLOR_ATTACHMENT0};
+GLuint h_tilde_0_conj0;
 GLuint displaceRT;
 GLuint water_map;
 GLuint fft_pre_shader;
@@ -163,12 +161,13 @@ int main() {
         //fft pre compute
         glViewport(0, 0, water_size_x, water_size_z);
         glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer);
-        glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, height_spectrumRT, 0);
-        glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, displace_spectrumRT_x, 0);
-        glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, displace_spectrumRT_z, 0);
-        glDrawBuffers(3, &frame_attachments[0]);
+        glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, h_tilde_0_conj0, 0);
+        glDrawBuffers(1, &frame_attachments[0]);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(fft_pre_shader);
+        glUniform2fv(glGetUniformLocation(fft_pre_shader, "uWind"), 1, &wind[0]);
+        glUniform1f(glGetUniformLocation(fft_pre_shader, "uWave_height"), wave_height);
+        glBindVertexArray(scr_mesh_VAO);
         glDrawElements(GL_TRIANGLES, scr_mesh_triagnle_size * 3, GL_UNSIGNED_INT, 0);
 
         glViewport(0, 0, water_size_x, water_size_z);
@@ -179,14 +178,9 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(fft_displacement_shader);
         glActiveTexture(GL_TEXTURE0);
-        glUniform1i(glGetUniformLocation(sky_shader, "uHeightSpectrumRT"), 0);
-        glBindTexture(GL_TEXTURE_2D, height_spectrumRT);
-        glActiveTexture(GL_TEXTURE1);
-        glUniform1i(glGetUniformLocation(sky_shader, "uDisplaceXSpectrumRT"), 1);
-        glBindTexture(GL_TEXTURE_2D, displace_spectrumRT_x);
-        glActiveTexture(GL_TEXTURE2);
-        glUniform1i(glGetUniformLocation(sky_shader, "uDisplaceZSpectrumRT"), 2);
-        glBindTexture(GL_TEXTURE_2D, displace_spectrumRT_z);
+        glUniform1i(glGetUniformLocation(sky_shader, "fH_tilde_0_conj0"), 0);
+        glBindTexture(GL_TEXTURE_2D, h_tilde_0_conj0);
+        glBindVertexArray(scr_mesh_VAO);
         glDrawElements(GL_TRIANGLES, scr_mesh_triagnle_size * 3, GL_UNSIGNED_INT, 0);
 
         // fft water map computer
@@ -197,6 +191,7 @@ int main() {
         glActiveTexture(GL_TEXTURE0);
         glUniform1i(glGetUniformLocation(sky_shader, "uDisplaceRT"), 0);
         glBindTexture(GL_TEXTURE_2D, displaceRT);
+        glBindVertexArray(scr_mesh_VAO);
         glDrawElements(GL_TRIANGLES, scr_mesh_triagnle_size * 3, GL_UNSIGNED_INT, 0);
 
         glViewport(0, 0, scr_width, scr_height);
@@ -253,9 +248,12 @@ void create_resource(void) {
     // create fft
     glGenFramebuffers(1, &frame_buffer);
 	glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer);
-    create_empty_texture(water_size_x, water_size_z, height_spectrumRT);
-    create_empty_texture(water_size_x, water_size_z, displace_spectrumRT_x);
-    create_empty_texture(water_size_x, water_size_z, displace_spectrumRT_z);
+    glGenRenderbuffers(1, &ds_render_buffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, ds_render_buffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, water_size_x, water_size_z);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, ds_render_buffer);
+
+    create_empty_texture(water_size_x, water_size_z, h_tilde_0_conj0);
     create_empty_texture(water_size_x, water_size_z, displaceRT);
     create_empty_texture(water_size_x, water_size_z, water_map);
     create_shader(fft_pre_vertex_shader, fft_pre_fragment_shader, fft_pre_shader);
