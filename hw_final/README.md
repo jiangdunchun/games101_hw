@@ -38,4 +38,6 @@ make
 
 [快速傅立叶变换(FFT)的海面模拟](https://blog.csdn.net/qq_39300235/article/details/103582460)
 
+[海面模拟以及渲染(计算着色器、FFT、Reflection Matrix)](https://blog.csdn.net/xiewenzhao123/article/details/79111004)
+
 [快速傅里叶变换(蝶形变换)-FFT](https://zhuanlan.zhihu.com/p/374489378)
