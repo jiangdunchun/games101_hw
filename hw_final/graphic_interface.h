@@ -82,13 +82,27 @@ void create_shader(const string& vertex_code, const string& fragment_code, GLuin
   glDeleteShader(f_id);
 }
 
+void create_shader(const string& compute_code, GLuint& shader) {
+    unsigned int c_id;
+    const char* c_code = compute_code.c_str();
+    c_id = glCreateShader(GL_COMPUTE_SHADER);
+    glShaderSource(c_id, 1, &c_code, NULL);
+    glCompileShader(c_id);
+    check_compile_errors(c_id, "COMPUTE", compute_code);
+
+    shader = glCreateProgram();
+    glAttachShader(shader, c_id);
+    glLinkProgram(shader);
+    glDeleteShader(c_id);
+
+}
 
 // vertex 
 struct vertex {
-  vec3 position;
-  vec2 tex_coord;
-  vec3 normal;
-  vec3 tangent;
+    vec3 position;
+    vec2 tex_coord;
+    vec3 normal;
+    vec3 tangent;
 };
 
 void create_vertex_buffer(const vector<vertex>& vertices, const vector<unsigned int>& indices, GLuint& VAO, GLuint& VBO, GLuint& EBO) {
@@ -170,7 +184,7 @@ void create_cubemap(const vector<string>& images, GLuint& cubemap) {
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 
-void create_empty_texture(unsigned int width, unsigned int height, GLuint& texture) {
+void create_texture_2d(unsigned int width, unsigned int height, GLuint& texture, GLuint format, void* data = nullptr) {
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
     glTexImage2D(
@@ -180,12 +194,29 @@ void create_empty_texture(unsigned int width, unsigned int height, GLuint& textu
         width, 
         height, 
         0, 
-        GL_RGBA,
+        format,
         GL_FLOAT,
-        nullptr);
+        data);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);	
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+}
+
+void create_texture_1d(unsigned int width, GLuint& texture, GLuint format, void* data = nullptr) {
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_1D, texture);
+    glTexImage1D(
+        GL_TEXTURE_1D, 
+        0, 
+        GL_RGBA16F, 
+        width,
+        0, 
+        format,
+        GL_FLOAT,
+        data);
+
+    glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);	
+    glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 
 // matrix

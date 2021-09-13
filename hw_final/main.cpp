@@ -3,8 +3,14 @@
 
 #include "shader_files.h"
 
-const vec2 wind = vec2(1.0f, 1.0f);
+#define PI 3.1415926
+#define G 9.81
+
+const vec2 wind = vec2(10.0f, -10.0f);
 const float wave_height = 2.0f;
+const float water_size = 500.0f;
+const int water_vertices_num = 512;
+
 const float water_size_x = 1000.0f;
 const float water_size_z = 1000.0f;
 const unsigned int water_num_x = 1000;
@@ -80,6 +86,7 @@ const vector<unsigned int> sky_indices = {
     20, 21, 23,
     21, 22, 23};
 
+float n_time = 0.0f;
 unsigned int scr_width = 800;
 unsigned int scr_height = 600;
 vec3 camera_position = vec3(0.0f, 5.0f, 0.0f);
@@ -87,19 +94,15 @@ vec3 camera_rotation = vec3(0.0f, 0.0f, 0.0f);
 mat4 view;
 mat4 projection;
 
-GLuint frame_buffer;
-GLuint ds_render_buffer;
-vector<GLuint> frame_attachments = {GL_COLOR_ATTACHMENT0};
-GLuint h_tilde_0_conj0;
-GLuint displaceRT;
-GLuint water_map;
-GLuint fft_pre_shader;
+int fft_steps = 0;
+GLuint fft_ht_shader;
 GLuint fft_displacement_shader;
-GLuint fft_map_shader;
-GLuint scr_mesh_VAO;
-GLuint scr_mesh_VBO;
-GLuint scr_mesh_EBO;
-GLuint scr_mesh_triagnle_size;
+GLuint fft_normal_shader;
+GLuint h0_texture;
+GLuint ht_texture;
+GLuint displacement_textures[2];
+GLuint normal_texture;
+GLuint butterfly_indices_texture;
 
 GLuint sky_shader;
 GLuint sky_cubemap;
@@ -120,7 +123,7 @@ void create_resource(void);
 
 int main() {
     glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
@@ -143,56 +146,40 @@ int main() {
 
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
-    // //fft pre compute
-    // glViewport(0, 0, water_size_x, water_size_z);
-    // glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer);
-    // glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, height_spectrumRT, 0);
-    // glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, displace_spectrumRT_x, 0);
-    // glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, displace_spectrumRT_z, 0);
-    // glDrawBuffers(3, &frame_attachments[0]);
-    // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    // glUseProgram(fft_pre_shader);
-    // glDrawElements(GL_TRIANGLES, scr_mesh_triagnle_size * 3, GL_UNSIGNED_INT, 0);
-
-
+    clock_t start, end;
     while(!glfwWindowShouldClose(window)) {
+        start = clock();
         processInput(window);
 
-        //fft pre compute
-        glViewport(0, 0, water_size_x, water_size_z);
-        glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer);
-        glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, h_tilde_0_conj0, 0);
-        glDrawBuffers(1, &frame_attachments[0]);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glUseProgram(fft_pre_shader);
-        glUniform2fv(glGetUniformLocation(fft_pre_shader, "uWind"), 1, &wind[0]);
-        glUniform1f(glGetUniformLocation(fft_pre_shader, "uWave_height"), wave_height);
-        glBindVertexArray(scr_mesh_VAO);
-        glDrawElements(GL_TRIANGLES, scr_mesh_triagnle_size * 3, GL_UNSIGNED_INT, 0);
+        // ht
+        glUseProgram(fft_ht_shader);
+        glBindImageTexture(0, h0_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+	    glBindImageTexture(1, ht_texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glUniform1f(glGetUniformLocation(fft_ht_shader, "u_totalTime"), n_time);
+        glDispatchCompute(water_vertices_num, water_vertices_num, 1);
+	    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-        glViewport(0, 0, water_size_x, water_size_z);
-        glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer);
-        //fft displacement compute
-        glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, displaceRT, 0);
-        glDrawBuffers(1, &frame_attachments[0]);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        // ifft
         glUseProgram(fft_displacement_shader);
-        glActiveTexture(GL_TEXTURE0);
-        glUniform1i(glGetUniformLocation(sky_shader, "fH_tilde_0_conj0"), 0);
-        glBindTexture(GL_TEXTURE_2D, h_tilde_0_conj0);
-        glBindVertexArray(scr_mesh_VAO);
-        glDrawElements(GL_TRIANGLES, scr_mesh_triagnle_size * 3, GL_UNSIGNED_INT, 0);
+	    glBindImageTexture(0, ht_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+	    glBindImageTexture(1, displacement_textures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+	    glBindImageTexture(2, butterfly_indices_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+	    glUniform1i(glGetUniformLocation(fft_displacement_shader, "u_processColumn"), 0);
+	    glUniform1i(glGetUniformLocation(fft_displacement_shader, "u_steps"), fft_steps);
+        glDispatchCompute(1, water_vertices_num, 1);
+	    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        glBindImageTexture(0, displacement_textures[0], 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+        glBindImageTexture(1, displacement_textures[1], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glUniform1i(glGetUniformLocation(fft_displacement_shader, "u_processColumn"), 1);
+        glDispatchCompute(1, water_vertices_num, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-        // fft water map computer
-        glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, water_map, 0);
-        glDrawBuffers(1, &frame_attachments[0]);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glUseProgram(fft_map_shader);
-        glActiveTexture(GL_TEXTURE0);
-        glUniform1i(glGetUniformLocation(sky_shader, "uDisplaceRT"), 0);
-        glBindTexture(GL_TEXTURE_2D, displaceRT);
-        glBindVertexArray(scr_mesh_VAO);
-        glDrawElements(GL_TRIANGLES, scr_mesh_triagnle_size * 3, GL_UNSIGNED_INT, 0);
+        // normal
+        glUseProgram(fft_normal_shader);
+        glBindImageTexture(0, displacement_textures[1], 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+        glBindImageTexture(1, normal_texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute(water_vertices_num, water_vertices_num, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
         glViewport(0, 0, scr_width, scr_height);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -219,13 +206,15 @@ int main() {
         glBindTexture(GL_TEXTURE_CUBE_MAP, sky_cubemap);
         glActiveTexture(GL_TEXTURE1);
         glUniform1i(glGetUniformLocation(sky_shader, "uMap"), 1);
-        glBindTexture(GL_TEXTURE_2D, water_map);
+        glBindTexture(GL_TEXTURE_2D, normal_texture);
         glBindVertexArray(water_mesh_VAO);
         glDrawElements(GL_TRIANGLES, water_mesh_triagnle_size * 3, GL_UNSIGNED_INT, 0);
 
 
         glfwSwapBuffers(window);
         glfwPollEvents();
+        end = clock();
+		n_time = float(end - start) / 1000.0f;
     }
     glfwTerminate();
     return 1;
@@ -244,23 +233,107 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     construct_projection(zoom, float(height)/ width, z_near, z_far, projection);
 }
 
+GLfloat rand(const GLfloat start, const GLfloat end) {
+	return ((GLfloat)rand() / (GLfloat)RAND_MAX) * (end - start) + start;
+}
+ 
+GLfloat rand_normal(const GLfloat mean, const GLfloat standardDeviation) {
+	GLfloat x1, x2;
+	x1 = rand(0.000001f, 1.0f - 0.000001f);
+	x2 = rand(0.0f, 1.0f);
+ 
+	return mean + standardDeviation * (sqrtf(-2.0f * logf(x1)) * cosf(2.0f * PI * x2));
+}
+ 
+GLfloat phillips(GLfloat A, GLfloat L, glm::vec2 waveDirection, glm::vec2 windDirection) {
+	GLfloat k = glm::length(waveDirection);
+	GLfloat waveDotWind = glm::dot(waveDirection, windDirection);
+ 
+	if (L == 0.0f || k == 0.0f) return 0.0f;
+	return A * expf(-1.0f / (k * L * k * L)) / (k * k * k * k) * waveDotWind * waveDotWind;
+}
+
+void butterfly_shuffle_indices(GLfloat* indices, int num) {
+    struct butterfly_shuffle_item{
+        vector<GLfloat> indices;
+        butterfly_shuffle_item* left = nullptr;
+        butterfly_shuffle_item* right = nullptr;
+
+        butterfly_shuffle_item() {}
+        ~butterfly_shuffle_item() {
+            if (left) delete left;
+            if (right) delete right;
+        }
+        static void split(butterfly_shuffle_item* n_item) {
+            if (n_item->indices.size() <= 2) return;
+
+            n_item->left = new butterfly_shuffle_item();
+            n_item->right = new butterfly_shuffle_item();
+            for (int i = 0; i < n_item->indices.size(); i++) {
+                if (i % 2 == 0) n_item->left->indices.push_back(n_item->indices[i]);
+                else n_item->right->indices.push_back(n_item->indices[i]);
+            }
+            split(n_item->left);
+            split(n_item->right);
+        }
+        static void tranverse(butterfly_shuffle_item* n_item, vector<GLfloat>& indices) {
+            if (n_item->indices.size() <= 2) {
+                indices.push_back(n_item->indices[0]);
+                indices.push_back(n_item->indices[1]);
+            }
+            else {
+                tranverse(n_item->left, indices);
+                tranverse(n_item->right, indices);
+            }
+        }
+    };
+    butterfly_shuffle_item* n_item = new butterfly_shuffle_item();
+    for (int i = 0; i < num; i++) n_item->indices.push_back(indices[i]);
+    butterfly_shuffle_item::split(n_item);
+    vector<GLfloat> buffer;
+    butterfly_shuffle_item::tranverse(n_item, buffer); 
+    for (int i = 0; i < num; i++) indices[i] = buffer[i];
+    delete n_item;
+}
+
 void create_resource(void) {
     // create fft
-    glGenFramebuffers(1, &frame_buffer);
-	glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer);
-    glGenRenderbuffers(1, &ds_render_buffer);
-    glBindRenderbuffer(GL_RENDERBUFFER, ds_render_buffer);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, water_size_x, water_size_z);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, ds_render_buffer);
+	GLint temp = water_vertices_num;
+	while (!(temp & 0x1)) {
+		temp = temp >> 1;
+		fft_steps++;
+	}
+    create_shader(fft_ht_computer_shader, fft_ht_shader);
+    create_shader(fft_displacement_computer_shader, fft_displacement_shader);
+    create_shader(fft_normal_computer_shader, fft_normal_shader);
 
-    create_empty_texture(water_size_x, water_size_z, h_tilde_0_conj0);
-    create_empty_texture(water_size_x, water_size_z, displaceRT);
-    create_empty_texture(water_size_x, water_size_z, water_map);
-    create_shader(fft_pre_vertex_shader, fft_pre_fragment_shader, fft_pre_shader);
-    create_shader(fft_displacement_vertex_shader, fft_displacement_fragment_shader, fft_displacement_shader);
-    create_shader(fft_map_vertex_shader, fft_map_fragment_shader, fft_map_shader);
-    create_vertex_buffer(scr_vertices, scr_indices, scr_mesh_VAO, scr_mesh_VBO, scr_mesh_EBO);
-    scr_mesh_triagnle_size = scr_indices.size() / 3; 
+    GLfloat* h0_data = (GLfloat*)malloc(water_vertices_num * water_vertices_num * 2 * sizeof(GLfloat));
+    vec2 wind_dir = normalize(wind);
+    float wind_speed = length(wind);
+    vec2 wave_dir;
+    for (int i = 0; i < water_vertices_num; i++) {
+		wave_dir.y = ((GLfloat)i - (GLfloat)water_vertices_num / 2.0f) * (2.0f * PI / water_size);
+		for (int j = 0; j < water_vertices_num; j++)
+		{
+			wave_dir.x = ((GLfloat)j - (GLfloat)water_vertices_num / 2.0f) * (2.0f * PI / water_size);
+			float phillips_value = phillips(wave_height, wind_speed * wind_speed / G, wave_dir, wind_dir);
+			h0_data[i * 2 * water_vertices_num + j * 2 + 0] = 1.0f / sqrtf(2.0f) * rand_normal(0.0f, 1.0f) * phillips_value;
+			h0_data[i * 2 * water_vertices_num + j * 2 + 1] = 1.0f / sqrtf(2.0f) * rand_normal(0.0f, 1.0f) * phillips_value;
+		}
+	}
+    create_texture_2d(water_vertices_num, water_vertices_num, h0_texture, GL_RG, h0_data);
+    free(h0_data);
+    create_texture_2d(water_vertices_num, water_vertices_num, ht_texture, GL_RG);
+    create_texture_2d(water_vertices_num, water_vertices_num, displacement_textures[0], GL_RG);
+    create_texture_2d(water_vertices_num, water_vertices_num, displacement_textures[1], GL_RG);
+    create_texture_2d(water_vertices_num, water_vertices_num, normal_texture, GL_RGBA);
+
+    GLfloat* butterfly_indices_data = (GLfloat*)malloc(water_vertices_num * sizeof(GLfloat));
+	for (int i = 0; i < water_vertices_num; i++) butterfly_indices_data[i] = i;
+    butterfly_shuffle_indices(butterfly_indices_data, water_vertices_num);
+    create_texture_1d(water_vertices_num, butterfly_indices_texture, GL_RED, butterfly_indices_data);
+    free(butterfly_indices_data);
+
 
     // create sky
     create_shader(sky_vertex_shader, sky_fragment_shader, sky_shader);
@@ -272,7 +345,7 @@ void create_resource(void) {
     create_shader(water_vertex_shader, water_fragment_shader, water_shader);
     vector<vertex> water_vertices;
     vector<unsigned int> water_indices;
-    generate_plane(water_size_x, water_size_z, water_num_x, water_num_z, water_vertices, water_indices);
+    generate_plane(water_size, water_size, water_vertices_num, water_vertices_num, water_vertices, water_indices);
     create_vertex_buffer(water_vertices, water_indices, water_mesh_VAO, water_mesh_VBO, water_mesh_EBO);
     water_mesh_triagnle_size = water_indices.size() / 3;
 }
