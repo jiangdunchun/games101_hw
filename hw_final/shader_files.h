@@ -9,27 +9,24 @@ string fft_ht_computer_shader = R"delimiter(
 #version 430 core
  
 #define N 512
-#define LENGTH 250.0
+#define LENGTH 500.0
 #define G 9.81
 #define PI 3.1415926
  
-layout (binding = 0, rg32f) uniform image2D u_imageIn; 
-layout (binding = 1, rg32f) uniform image2D u_imageOut;
+layout (binding = 0, rgba16f) uniform image2D u_H0_K; 
+layout (binding = 1, rgba16f) uniform image2D u_H_K_t;
  
-uniform float u_totalTime;
- 
-//使用布局限定符声明本地工作组大小为1*1*1
+uniform float u_Time;
+
 layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
  
-void main(void)
-{
-	//通过gl_GlobalInvocationID来得知当前执行单元在全局工作组中的位置
+void main(void){
 	ivec2 storePos = ivec2(int(gl_GlobalInvocationID.x), int(gl_GlobalInvocationID.y));
 	ivec2 storePos_negative = ivec2(N - 1 - storePos.x, N - 1 - storePos.y);
 	
 	//根据位置storePos在贴图中采样得到数据
-	vec2 h0 = imageLoad(u_imageIn, storePos).xy;
-	vec2 h0_negative = imageLoad(u_imageIn, storePos_negative).xy;
+	vec2 h0 = imageLoad(u_H0_K, storePos).xy;
+	vec2 h0_negative = imageLoad(u_H0_K, storePos_negative).xy;
  
 	vec2 waveDirection;
 	waveDirection.x = (float(-N) / 2.0 + gl_GlobalInvocationID.x) * (2.0 * PI / LENGTH);
@@ -37,7 +34,7 @@ void main(void)
  
 	float w2k = G * length(waveDirection);
  
-	float wktime = sqrt(w2k) * u_totalTime;
+	float wktime = sqrt(w2k) * u_Time;
  
 	float cos_wktime = cos(wktime);
 	float sin_wktime = sin(wktime);
@@ -46,7 +43,7 @@ void main(void)
 	ht.x = (h0.x * cos_wktime - h0.y * sin_wktime) + (h0_negative.x * cos_wktime - h0_negative.y * sin_wktime); 
 	ht.y = (h0.x * sin_wktime + h0.y * cos_wktime) + (h0_negative.x * sin_wktime + h0_negative.y * cos_wktime); 
 	//将算出来的高度值存储到贴图当中
-	imageStore(u_imageOut, storePos, vec4(ht, 0.0, 0.0));
+	imageStore(u_H_K_t, storePos, vec4(ht, 0.0, 0.0));
 }
 )delimiter";
 
@@ -60,9 +57,9 @@ uniform int u_processColumn;
  
 uniform int u_steps;
  
-layout (binding = 0, rg32f) uniform image2D u_imageIn; 
-layout (binding = 1, rg32f) uniform image2D u_imageOut;
-layout (binding = 2, r32f) uniform image1D u_imageIndices;
+layout (binding = 0, rgba16f) uniform image2D u_imageIn; 
+layout (binding = 1, rgba16f) uniform image2D u_imageOut;
+layout (binding = 2, rgba16f) uniform image1D u_imageIndices;
  
 shared vec2 sharedStore[N];
  
@@ -206,13 +203,13 @@ string fft_normal_computer_shader = R"delimiter(
 #version 430 core
  
 #define N 512
-#define LENGTH	250.0
+#define LENGTH	500.0f
  
 #define VERTEX_STEP (LENGTH / float(N - 1))
 #define DIAGONAL_VERTEX_STEP sqrt(VERTEX_STEP * VERTEX_STEP * 2.0)
  
-layout (binding = 0, rg32f) uniform image2D u_imageIn; 
-layout (binding = 1, rgba32f) uniform image2D u_imageOut;
+layout (binding = 0, rgba16f) uniform image2D u_imageIn; 
+layout (binding = 1, rgba16f) uniform image2D u_imageOut;
  
 layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
  

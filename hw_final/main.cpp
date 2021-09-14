@@ -6,15 +6,12 @@
 #define PI 3.1415926
 #define G 9.81
 
-const vec2 wind = vec2(10.0f, -10.0f);
+const vec2 wind_dir = normalize(vec2(1.0f, -1.0f));
+const float wind_speed = length(vec2(10.0f, -10.0f));
 const float wave_height = 2.0f;
 const float water_size = 500.0f;
 const int water_vertices_num = 512;
 
-const float water_size_x = 1000.0f;
-const float water_size_z = 1000.0f;
-const unsigned int water_num_x = 1000;
-const unsigned int water_num_z = 1000;
 const float zoom = 90.0f;
 const float z_near = 0.1f;
 const float z_far = 1000.0f;
@@ -155,7 +152,7 @@ int main() {
         glUseProgram(fft_ht_shader);
         glBindImageTexture(0, h0_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
 	    glBindImageTexture(1, ht_texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-        glUniform1f(glGetUniformLocation(fft_ht_shader, "u_totalTime"), n_time);
+        glUniform1f(glGetUniformLocation(fft_ht_shader, "u_Time"), n_time);
         glDispatchCompute(water_vertices_num, water_vertices_num, 1);
 	    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
@@ -214,7 +211,7 @@ int main() {
         glfwSwapBuffers(window);
         glfwPollEvents();
         end = clock();
-		n_time = float(end - start) / 1000.0f;
+		n_time += float(end - start) / 1000000.0f;
     }
     glfwTerminate();
     return 1;
@@ -308,17 +305,14 @@ void create_resource(void) {
     create_shader(fft_normal_computer_shader, fft_normal_shader);
 
     GLfloat* h0_data = (GLfloat*)malloc(water_vertices_num * water_vertices_num * 2 * sizeof(GLfloat));
-    vec2 wind_dir = normalize(wind);
-    float wind_speed = length(wind);
     vec2 wave_dir;
     for (int i = 0; i < water_vertices_num; i++) {
 		wave_dir.y = ((GLfloat)i - (GLfloat)water_vertices_num / 2.0f) * (2.0f * PI / water_size);
-		for (int j = 0; j < water_vertices_num; j++)
-		{
+		for (int j = 0; j < water_vertices_num; j++) {
 			wave_dir.x = ((GLfloat)j - (GLfloat)water_vertices_num / 2.0f) * (2.0f * PI / water_size);
 			float phillips_value = phillips(wave_height, wind_speed * wind_speed / G, wave_dir, wind_dir);
-			h0_data[i * 2 * water_vertices_num + j * 2 + 0] = 1.0f / sqrtf(2.0f) * rand_normal(0.0f, 1.0f) * phillips_value;
-			h0_data[i * 2 * water_vertices_num + j * 2 + 1] = 1.0f / sqrtf(2.0f) * rand_normal(0.0f, 1.0f) * phillips_value;
+			h0_data[i * 2 * water_vertices_num + j * 2 + 0] = 1.0f / sqrtf(2.0f) * rand_normal(0.0f, 1.0f) * sqrtf(phillips_value);
+			h0_data[i * 2 * water_vertices_num + j * 2 + 1] = 1.0f / sqrtf(2.0f) * rand_normal(0.0f, 1.0f) * sqrtf(phillips_value);
 		}
 	}
     create_texture_2d(water_vertices_num, water_vertices_num, h0_texture, GL_RG, h0_data);
