@@ -41,3 +41,5 @@ make
 [海面模拟以及渲染(计算着色器、FFT、Reflection Matrix)](https://blog.csdn.net/xiewenzhao123/article/details/79111004)
 
 [快速傅里叶变换(蝶形变换)-FFT](https://zhuanlan.zhihu.com/p/374489378)
+
+[Realtime GPGPU FFT Ocean Water Simulation](https://tore.tuhh.de/bitstream/11420/1439/1/GPGPU_FFT_Ocean_Simulation.pdf)
