@@ -5,6 +5,112 @@
 
 using namespace std;
 
+string fft_ht_compute_shader = R"delimiter(
+#version 430 core
+#define G 9.81
+#define PI 3.1415926
+ 
+layout (binding = 0, rgba16f) uniform image2D u_H0_k; 
+layout (binding = 1, rgba16f) uniform image2D u_H0_kneg_conj;
+layout (binding = 2, rgba16f) uniform image2D u_Ht_k_y; 
+layout (binding = 3, rgba16f) uniform image2D u_Ht_k_x;
+layout (binding = 4, rgba16f) uniform image2D u_Ht_k_z; 
+ 
+uniform float u_Timer;
+uniform int u_N;
+uniform float u_L;
+
+layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+vec2 complex_multiply(vec2 a, vec2 b) {
+	return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
+}
+ 
+void main(void){
+	ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
+
+	vec2 h0_k = imageLoad(u_H0_k, pos).xy;
+	vec2 h0_kneg_conj = imageLoad(u_H0_kneg_conj, pos).xy;
+ 
+	vec2 k = (2.0 * PI / u_L) * (pos - 0.5f * vec2(u_N, u_N));
+ 
+	float omega_t = sqrt(G * length(k)) * u_Timer;
+	float cos_omega_t = cos(omega_t);
+	float sin_omega_t = sin(omega_t);
+
+	vec2 ht_y = complex_multiply(h0_k, vec2(cos_omega_t, sin_omega_t)) + complex_multiply(h0_kneg_conj, vec2(cos_omega_t, -1.0f * sin_omega_t));
+
+	k = k / max(0.001f, length(k));
+
+	vec2 ht_x = complex_multiply(ht_y, vec2(0.0f, -1.0f * k.x));
+	vec2 ht_z = complex_multiply(ht_y, vec2(0.0f, -1.0f * k.y));
+
+	imageStore(u_Ht_k_y, pos, vec4(ht_y, 0.0f, 0.0f));
+	imageStore(u_Ht_k_x, pos, vec4(ht_x, 0.0f, 0.0f));
+	imageStore(u_Ht_k_z, pos, vec4(ht_z, 0.0f, 0.0f));
+}
+)delimiter";
+
+string fft_ifft_compute_shader = R"delimiter(
+#version 430 core
+#define G 9.81
+#define PI 3.1415926
+
+layout (binding = 0, rgba16f) uniform image1D u_Butterfly_indices;
+layout (binding = 1, rgba16f) uniform image2D u_Ht_k;
+layout (binding = 2, rgba16f) uniform image2D u_Pingpong;
+
+uniform int u_Step;
+uniform int u_N;
+uniform int u_Direction;
+
+layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+vec2 complex_multiply(vec2 a, vec2 b) {
+	return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
+}
+
+void main(void){
+	ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
+	int section = int(pow(2, u_Step));
+	for (int i = 0; i < u_N / 2; i++) {
+		//pos.x = i;
+		//imageStore(u_Pingpong, pos, vec4(1.0f, 1.0f, 0.0f, 0.0f));
+		vec2 w = vec2(cos(2.0f * PI * float(i % section) / float(2 * section)), sin(2.0f * PI * float(i % section) / float(2 * section)));
+		int left_index_in_butterfly = (i / section) * (2 * section) + (i % section);
+		int right_index_in_butterfly = left_index_in_butterfly + section;
+		int left = int(imageLoad(u_Butterfly_indices, left_index_in_butterfly).r);
+		int right = int(imageLoad(u_Butterfly_indices, right_index_in_butterfly).r);
+			
+		ivec2 left_index;
+		ivec2 right_index;
+		if (u_Direction > 0) {
+			left_index = ivec2(pos.y, left);
+			right_index = ivec2(pos.y, right);
+		}
+		else {
+			left_index = ivec2(left, pos.y);
+			right_index = ivec2(right, pos.y);
+		}
+			
+		vec2 p = imageLoad(u_Ht_k, left_index).xy;
+		vec2 q = imageLoad(u_Ht_k, right_index).xy;
+
+		vec2 left_value = p + complex_multiply(w, q);
+		vec2 right_value = p - complex_multiply(w, q);	
+		
+		imageStore(u_Pingpong, left_index, vec4(left_value, 0.0f, 0.0f));
+		imageStore(u_Pingpong, right_index, vec4(right_value, 0.0f, 0.0f));
+	}
+}
+)delimiter";
+
+string fft_displacement_compute_shader = R"delimiter(
+)delimiter";
+
+string fft_normal_bubble_compute_shader = R"delimiter(
+)delimiter";
+
 string fft_ht_computer_shader = R"delimiter(
 #version 430 core
  
@@ -24,7 +130,6 @@ void main(void){
 	ivec2 storePos = ivec2(int(gl_GlobalInvocationID.x), int(gl_GlobalInvocationID.y));
 	ivec2 storePos_negative = ivec2(N - 1 - storePos.x, N - 1 - storePos.y);
 	
-	//根据位置storePos在贴图中采样得到数据
 	vec2 h0 = imageLoad(u_H0_K, storePos).xy;
 	vec2 h0_negative = imageLoad(u_H0_K, storePos_negative).xy;
  
@@ -42,7 +147,6 @@ void main(void){
 	vec2 ht;
 	ht.x = (h0.x * cos_wktime - h0.y * sin_wktime) + (h0_negative.x * cos_wktime - h0_negative.y * sin_wktime); 
 	ht.y = (h0.x * sin_wktime + h0.y * cos_wktime) + (h0_negative.x * sin_wktime + h0_negative.y * cos_wktime); 
-	//将算出来的高度值存储到贴图当中
 	imageStore(u_H_K_t, storePos, vec4(ht, 0.0, 0.0));
 }
 )delimiter";
@@ -76,7 +180,6 @@ vec2 mulc(vec2 a, vec2 b)
 	return result;
 }
  
-//转换成单位根向量
 vec2 rootOfUnityc(int n, int k)
 {
 	vec2 result;
@@ -101,11 +204,9 @@ void main(void)
 	int leftStoreIndex = 2 * xIndex;
 	int rightStoreIndex = 2 * xIndex + 1;
  
-	//读取索引（每一组有两个索引例如（0,4））
 	int leftLoadIndex = int(imageLoad(u_imageIndices, leftStoreIndex).r);
 	int rightLoadIndex = int(imageLoad(u_imageIndices, rightStoreIndex).r);
  
-	// 加载和存储位置取决于行或列。
 	if (u_processColumn == 0)
 	{
 		leftLoadPos = ivec2(leftLoadIndex, yIndex);
@@ -123,14 +224,13 @@ void main(void)
 		rightStorePos = ivec2(yIndex, rightStoreIndex);
 	}
  
-	// 从贴图中读取数据
 	vec2 leftValue = imageLoad(u_imageIn, leftLoadPos).xy;
 	vec2 rightValue = imageLoad(u_imageIn, rightLoadPos).xy;
-	//放入到共享缓存中
+
 	sharedStore[leftStoreIndex] = leftValue;
 	sharedStore[rightStoreIndex] = rightValue;
  
-	//确保所有数据都存储完毕（否则后续逻辑将无法读到所需的数据，即要保证时序）
+
 	memoryBarrierShared();
 	barrier();
 	
@@ -141,13 +241,13 @@ void main(void)
 	int currentSection = xIndex;
 	int currentButterfly = 0;
  
-	// 计算FFT
+
 	for (int currentStep = 0; currentStep < u_steps; currentStep++)
 	{	
-		//根据位置来获取该组所需的两个索引
+
 		int leftIndex = currentButterfly + currentSection * numberButterfliesInSection * 2;
 		int rightIndex = currentButterfly + numberButterfliesInSection + currentSection * numberButterfliesInSection * 2;
-		//从共享缓存中获得数据
+
 		leftValue = sharedStore[leftIndex];
 		rightValue = sharedStore[rightIndex];
 			 						
@@ -165,17 +265,17 @@ void main(void)
 		sharedStore[leftIndex] = addition;
 		sharedStore[rightIndex] = subtraction;		
  
-		// 确保所有数据计算并存储完毕	
+
 		memoryBarrierShared();
  
-		// 根据蝴蝶算法来改变参数	
+
 		numberButterfliesInSection *= 2;
 		numberSections /= 2;
  
 		currentSection /= 2;
 		currentButterfly = xIndex % numberButterfliesInSection;
  
-		// 确保所有的计算着色器都计算完毕
+
 		barrier();
 	}
 	
@@ -459,7 +559,8 @@ in vec3 normal;
 in mat3 TBN;
 
 uniform samplerCube uSky;
-uniform sampler2D uMap;
+uniform sampler2D uNormal;
+uniform sampler2D uBubble;
 
 out vec3 fColor;
 
