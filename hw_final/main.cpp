@@ -131,6 +131,7 @@ GLuint water_mesh_triagnle_size;
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void processInput(GLFWwindow *window);
 void create_resource(void);
+void ifft(GLuint ht_texture, GLuint* pingpong_textures, GLuint& out_texture);
 
 int main() {
     glfwInit();
@@ -176,33 +177,33 @@ int main() {
 	    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
         // ifft
-        glUseProgram(fft_ifft_shader);
-        glBindImageTexture(0, butterfly_indices_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
-        glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_N"), FFT_N);
-        glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_Direction"), 0);
-        GLuint now_in = ht_k_y_texture;
-        GLuint now_out = pingpong_y_textures[0];
-        for (int i = 0; i < steps; i++) {
-            glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_Step"), i);
-            glBindImageTexture(1, now_in, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
-            glBindImageTexture(2, now_out, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-            glDispatchCompute(1, FFT_N, 1);
-            glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        GLuint height_texture;
+        ifft(ht_k_y_texture, pingpong_y_textures, height_texture);
+        GLuint diplacement_x_texture;
+        ifft(ht_k_x_texture, pingpong_x_textures, diplacement_x_texture);
+        GLuint diplacement_z_texture;
+        ifft(ht_k_z_texture, pingpong_z_textures, diplacement_z_texture);
 
-            now_in = now_out;
-            now_out = pingpong_y_textures[0] == now_in ? pingpong_y_textures[1] : pingpong_y_textures[0];
-        }
-        glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_Direction"), 1);
-        for (int i = 0; i < steps; i++) {
-            glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_Step"), i);
-            glBindImageTexture(1, now_in, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
-            glBindImageTexture(2, now_out, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-            glDispatchCompute(1, FFT_N, 1);
-            glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        // displacement
+        glUseProgram(fft_displacement_shader);
+        glBindImageTexture(0, height_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+        glBindImageTexture(1, diplacement_x_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+        glBindImageTexture(2, diplacement_z_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+        glBindImageTexture(3, displacement_texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glUniform1i(glGetUniformLocation(fft_displacement_shader, "u_N"), FFT_N);
+        glUniform1f(glGetUniformLocation(fft_displacement_shader, "u_A"), FFT_A);
+        glDispatchCompute(FFT_N, FFT_N, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-            now_in = now_out;
-            now_out = pingpong_y_textures[0] == now_in ? pingpong_y_textures[1] : pingpong_y_textures[0];
-        }
+        // displacement
+        glUseProgram(fft_normal_bubble_shader);
+        glBindImageTexture(0, displacement_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+        glBindImageTexture(1, normal_texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glBindImageTexture(2, bubble_texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glUniform1i(glGetUniformLocation(fft_normal_bubble_shader, "u_N"), FFT_N);
+        glUniform1f(glGetUniformLocation(fft_normal_bubble_shader, "u_L"), FFT_L);
+        glDispatchCompute(FFT_N, FFT_N, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
         glViewport(0, 0, scr_width, scr_height);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -391,4 +392,35 @@ void create_resource(void) {
     generate_plane(FFT_L, FFT_L, FFT_N, FFT_N, water_vertices, water_indices);
     create_vertex_buffer(water_vertices, water_indices, water_mesh_VAO, water_mesh_VBO, water_mesh_EBO);
     water_mesh_triagnle_size = water_indices.size() / 3;
+}
+
+void ifft(GLuint ht_texture, GLuint* pingpong_textures, GLuint& out_texture) {
+    glUseProgram(fft_ifft_shader);
+    glBindImageTexture(0, butterfly_indices_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+    glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_N"), FFT_N);
+    glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_Direction"), 0);
+    GLuint now_in = ht_texture;
+    GLuint now_out = pingpong_textures[0];
+    for (int i = 0; i < steps; i++) {
+        glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_Step"), i);
+        glBindImageTexture(1, now_in, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+        glBindImageTexture(2, now_out, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute(1, FFT_N, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+        now_in = now_out;
+        now_out = pingpong_textures[0] == now_in ? pingpong_textures[1] : pingpong_textures[0];
+    }
+    glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_Direction"), 1);
+    for (int i = 0; i < steps; i++) {
+        glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_Step"), i);
+        glBindImageTexture(1, now_in, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+        glBindImageTexture(2, now_out, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+        glDispatchCompute(1, FFT_N, 1);
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+        now_in = now_out;
+        now_out = pingpong_textures[0] == now_in ? pingpong_textures[1] : pingpong_textures[0];
+    }
+    out_texture = now_in;
 }
