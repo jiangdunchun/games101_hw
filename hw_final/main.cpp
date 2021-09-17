@@ -7,11 +7,11 @@
 #define PI 3.1415926
 #define G 9.81
 
-const int FFT_N = 256;
-const float FFT_L = 1000.0f;
+const int FFT_N = 512;
+const float FFT_L = 500.0f;
 const vec2 FFT_W = normalize(vec2(1.0f, -1.0f));
-const float FFT_V = 40.0f;
-const float FFT_A = 4.0f;
+const float FFT_V = 4000.0f;
+const float FFT_A = 40.0f;
 
 const float zoom = 90.0f;
 const float z_near = 0.1f;
@@ -88,7 +88,7 @@ float timer = 0.0f;
 unsigned int scr_width = 800;
 unsigned int scr_height = 600;
 vec3 camera_position = vec3(0.0f, 5.0f, 0.0f);
-vec3 camera_rotation = vec3(0.0f, 0.0f, 0.0f);
+vec3 camera_rotation = vec3(-10.0f, 0.0f, 0.0f);
 mat4 view;
 mat4 projection;
 
@@ -220,22 +220,28 @@ int main() {
         glDrawElements(GL_TRIANGLES, sky_mesh_triagnle_size * 3, GL_UNSIGNED_INT, 0);
 
         // draw water
+        //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         glClear(GL_DEPTH_BUFFER_BIT);
         construct_view(camera_position, camera_rotation, view);
         glUseProgram(water_shader);
-        glUniformMatrix4fv(glGetUniformLocation(sky_shader, "uProjection"), 1, GL_FALSE, &projection[0][0]);
-        glUniformMatrix4fv(glGetUniformLocation(sky_shader, "uView"), 1, GL_FALSE, &view[0][0]);
+        glUniformMatrix4fv(glGetUniformLocation(water_shader, "uProjection"), 1, GL_FALSE, &projection[0][0]);
+        glUniformMatrix4fv(glGetUniformLocation(water_shader, "uView"), 1, GL_FALSE, &view[0][0]);
+        glUniform3fv(glGetUniformLocation(water_shader, "uView_pos"), 1, &camera_position[0]);
         glActiveTexture(GL_TEXTURE0);
-        glUniform1i(glGetUniformLocation(sky_shader, "uSky"), 0);
-        glBindTexture(GL_TEXTURE_CUBE_MAP, sky_cubemap);
+        glUniform1i(glGetUniformLocation(water_shader, "uDisplacement"), 0);
+        glBindTexture(GL_TEXTURE_2D, displacement_texture);
         glActiveTexture(GL_TEXTURE1);
-        glUniform1i(glGetUniformLocation(sky_shader, "uNormal"), 1);
-        glBindTexture(GL_TEXTURE_2D, normal_texture);
+        glUniform1i(glGetUniformLocation(water_shader, "uSky"), 1);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, sky_cubemap);
         glActiveTexture(GL_TEXTURE2);
-        glUniform1i(glGetUniformLocation(sky_shader, "uBubble"), 2);
+        glUniform1i(glGetUniformLocation(water_shader, "uNormal"), 2);
+        glBindTexture(GL_TEXTURE_2D, normal_texture);
+        glActiveTexture(GL_TEXTURE3);
+        glUniform1i(glGetUniformLocation(water_shader, "uBubble"), 3);
         glBindTexture(GL_TEXTURE_2D, bubble_texture);
         glBindVertexArray(water_mesh_VAO);
         glDrawElements(GL_TRIANGLES, water_mesh_triagnle_size * 3, GL_UNSIGNED_INT, 0);
+        //glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 
         glfwSwapBuffers(window);
@@ -326,7 +332,8 @@ void butterfly_shuffle_indices(GLfloat* indices, int num) {
 void create_resource(void) {
     // fft
     create_shader(fft_ht_compute_shader, fft_ht_shader);
-    create_shader(fft_ifft_compute_shader, fft_ifft_shader);
+    //create_shader(fft_ifft_compute_shader, fft_ifft_shader);
+    create_shader(fft_ifft_0_compute_shader, fft_ifft_shader);
     create_shader(fft_displacement_compute_shader, fft_displacement_shader);
     create_shader(fft_normal_bubble_compute_shader, fft_normal_bubble_shader);
 
@@ -396,6 +403,21 @@ void create_resource(void) {
 
 void ifft(GLuint ht_texture, GLuint* pingpong_textures, GLuint& out_texture) {
     glUseProgram(fft_ifft_shader);
+    glBindImageTexture(0, ht_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+    glBindImageTexture(1, pingpong_textures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+    glBindImageTexture(2, butterfly_indices_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+    glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_processColumn"), 0);
+    glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_steps"), steps);
+    glDispatchCompute(1, FFT_N, 1);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    glBindImageTexture(0, pingpong_textures[0], 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+    glBindImageTexture(1, pingpong_textures[1], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+    glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_processColumn"), 1);
+    glDispatchCompute(1, FFT_N, 1);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    out_texture = pingpong_textures[1];
+
+    /*glUseProgram(fft_ifft_shader);
     glBindImageTexture(0, butterfly_indices_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
     glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_N"), FFT_N);
     glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_Direction"), 0);
@@ -422,5 +444,5 @@ void ifft(GLuint ht_texture, GLuint* pingpong_textures, GLuint& out_texture) {
         now_in = now_out;
         now_out = pingpong_textures[0] == now_in ? pingpong_textures[1] : pingpong_textures[0];
     }
-    out_texture = now_in;
+    out_texture = now_in;*/
 }

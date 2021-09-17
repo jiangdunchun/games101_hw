@@ -158,18 +158,19 @@ void main(void){
 	vec3 delta_z = zpos_displacement - zneg_displacement + 2.0f * vec3(0.0f, 0.0f, unit_len);
 
 	vec3 normal = normalize(cross(delta_z, delta_x));
+	normal = 0.5f * (normal + vec3(1.0f));
 
 	vec3 ddx = xpos_displacement - xneg_displacement;
 	vec3 ddz = zpos_displacement - zneg_displacement;
 
 	float jacobian = (1.0f + ddx.x) * (1.0f + ddz.z) - ddx.z * ddz.x;
 
-	imageStore(u_Normal, pos, vec4(normal, 0.0f));
+	imageStore(u_Normal, pos, vec4(normal.x, normal.z, normal.y, 0.0f));
 	imageStore(u_Bubble, pos, vec4(jacobian, 0.0f, 0.0f, 0.0f));
 }
 )delimiter";
 
-string fft_displacement_computer_shader = R"delimiter(
+string fft_ifft_0_compute_shader = R"delimiter(
 #version 430 core
  
 #define N 512
@@ -354,6 +355,7 @@ layout(location = 3) in vec3 aTangent;
 
 uniform mat4 uProjection;
 uniform mat4 uView;
+uniform sampler2D uDisplacement;
 
 out vec3 position;
 out vec2 tex_coord;
@@ -361,13 +363,13 @@ out vec3 normal;
 out mat3 TBN;
 
 void main() {
-    position = aPosition;
+    position = aPosition + texture(uDisplacement, aTex_coord).rgb;
     tex_coord = aTex_coord;
     normal = aNormal;
     vec3 B = normalize(cross(aNormal,aTangent));
     TBN = transpose(mat3(aTangent, B, aNormal));
 
-    gl_Position = uProjection * uView * vec4(aPosition, 1.0f);
+    gl_Position = uProjection * uView * vec4(position, 1.0f);
 }
 )delimiter";
 
@@ -382,11 +384,17 @@ in mat3 TBN;
 uniform samplerCube uSky;
 uniform sampler2D uNormal;
 uniform sampler2D uBubble;
+uniform vec3 uView_pos;
 
 out vec3 fColor;
 
 void main() {
-    fColor = vec3(0.5f, 0.5f, 0.5f);
+	vec3 N = normalize(inverse(TBN) * (texture(uNormal, tex_coord).rgb * 2.0f - 1.0f));
+	vec3 V = normalize(uView_pos - position);
+	vec3 R = reflect(-1.0f * V, N);
+
+	vec3 light = texture(uSky, R).rgb;
+    fColor = light;
 }
 )delimiter";
 
