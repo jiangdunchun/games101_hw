@@ -32,6 +32,10 @@ make
 ```
 
 # reference
+[真实感水体渲染技术总结](https://zhuanlan.zhihu.com/p/95917609)
+
+[FFT海洋水体渲染学习笔记（二）](https://zhuanlan.zhihu.com/p/335946333)
+
 [FFT海洋水体渲染学习笔记](https://zhuanlan.zhihu.com/p/335045713)
 
 [Unity 基于GPU FFT海洋的实现-理论篇](https://zhuanlan.zhihu.com/p/95482541)
