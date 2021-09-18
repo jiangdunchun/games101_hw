@@ -7,11 +7,11 @@
 #define PI 3.1415926
 #define G 9.81
 
-const int FFT_N = 512;
-const float FFT_L = 500.0f;
-const vec2 FFT_W = normalize(vec2(1.0f, -1.0f));
-const float FFT_V = 4000.0f;
-const float FFT_A = 40.0f;
+const int FFT_N = 256;
+const float FFT_L = 400.0f;
+const vec2 FFT_W = normalize(vec2(1.0f, 1.0f));
+const float FFT_V = 40.0f;
+const float FFT_A = 10.0f;
 
 const float zoom = 90.0f;
 const float z_near = 0.1f;
@@ -87,8 +87,8 @@ const vector<unsigned int> sky_indices = {
 float timer = 0.0f;
 unsigned int scr_width = 800;
 unsigned int scr_height = 600;
-vec3 camera_position = vec3(0.0f, 5.0f, 0.0f);
-vec3 camera_rotation = vec3(-10.0f, 0.0f, 0.0f);
+vec3 camera_position = vec3(0.0f, 100.0f, 300.0f);
+vec3 camera_rotation = vec3(-30.0f, 0.0f, 0.0f);
 mat4 view;
 mat4 projection;
 
@@ -219,7 +219,7 @@ int main() {
         glBindVertexArray(sky_mesh_VAO);
         glDrawElements(GL_TRIANGLES, sky_mesh_triagnle_size * 3, GL_UNSIGNED_INT, 0);
 
-        // draw water
+        //// draw water
         //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         glClear(GL_DEPTH_BUFFER_BIT);
         construct_view(camera_position, camera_rotation, view);
@@ -332,8 +332,8 @@ void butterfly_shuffle_indices(GLfloat* indices, int num) {
 void create_resource(void) {
     // fft
     create_shader(fft_ht_compute_shader, fft_ht_shader);
-    //create_shader(fft_ifft_compute_shader, fft_ifft_shader);
-    create_shader(fft_ifft_0_compute_shader, fft_ifft_shader);
+    create_shader(fft_ifft_compute_shader, fft_ifft_shader);
+    //create_shader(fft_ifft_0_compute_shader, fft_ifft_shader);
     create_shader(fft_displacement_compute_shader, fft_displacement_shader);
     create_shader(fft_normal_bubble_compute_shader, fft_normal_bubble_shader);
 
@@ -346,12 +346,12 @@ void create_resource(void) {
             wave_dir.x = ((GLfloat)j - (GLfloat)FFT_N / 2.0f) * (2.0f * PI / FFT_L);
             float L = FFT_V * FFT_V / G;
             float k_phillips_value = phillips(FFT_A, L, wave_dir, FFT_W);
-            h0_k_data[i * 2 * FFT_N + j * 2 + 0] = 1.0f / sqrtf(2.0f) * rand_normal(0.0f, 1.0f) * sqrtf(k_phillips_value);
-            h0_k_data[i * 2 * FFT_N + j * 2 + 1] = 1.0f / sqrtf(2.0f) * rand_normal(0.0f, 1.0f) * sqrtf(k_phillips_value);
+            h0_k_data[i * 2 * FFT_N + j * 2 + 0] = 1.0f / sqrtf(2.0f) * rand_normal(0.0f, 1.0f) * k_phillips_value;
+            h0_k_data[i * 2 * FFT_N + j * 2 + 1] = 1.0f / sqrtf(2.0f) * rand_normal(0.0f, 1.0f) * k_phillips_value;
 
             float kneg_phillips_value = phillips(FFT_A, L, -1.0f * wave_dir, FFT_W);
-            h0_kneg_conj_data[i * 2 * FFT_N + j * 2 + 0] = 1.0f / sqrtf(2.0f) * rand_normal(0.0f, 1.0f) * sqrtf(kneg_phillips_value);
-            h0_kneg_conj_data[i * 2 * FFT_N + j * 2 + 1] = -1.0f / sqrtf(2.0f) * rand_normal(0.0f, 1.0f) * sqrtf(kneg_phillips_value);
+            h0_kneg_conj_data[i * 2 * FFT_N + j * 2 + 0] = 1.0f / sqrtf(2.0f) * rand_normal(0.0f, 1.0f) * kneg_phillips_value;
+            h0_kneg_conj_data[i * 2 * FFT_N + j * 2 + 1] = -1.0f / sqrtf(2.0f) * rand_normal(0.0f, 1.0f) * kneg_phillips_value;
         }
     }
     create_texture_2d(FFT_N, FFT_N, h0_k_texture, GL_RG, h0_k_data);
@@ -402,25 +402,26 @@ void create_resource(void) {
 }
 
 void ifft(GLuint ht_texture, GLuint* pingpong_textures, GLuint& out_texture) {
-    glUseProgram(fft_ifft_shader);
-    glBindImageTexture(0, ht_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
-    glBindImageTexture(1, pingpong_textures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-    glBindImageTexture(2, butterfly_indices_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
-    glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_processColumn"), 0);
-    glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_steps"), steps);
-    glDispatchCompute(1, FFT_N, 1);
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-    glBindImageTexture(0, pingpong_textures[0], 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
-    glBindImageTexture(1, pingpong_textures[1], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-    glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_processColumn"), 1);
-    glDispatchCompute(1, FFT_N, 1);
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-    out_texture = pingpong_textures[1];
+    //glUseProgram(fft_ifft_shader);
+    //glBindImageTexture(0, ht_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+    //glBindImageTexture(1, pingpong_textures[0], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+    //glBindImageTexture(2, butterfly_indices_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+    //glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_processColumn"), 0);
+    //glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_steps"), steps);
+    //glDispatchCompute(1, FFT_N, 1);
+    //glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    //glBindImageTexture(0, pingpong_textures[0], 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+    //glBindImageTexture(1, pingpong_textures[1], 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+    //glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_processColumn"), 1);
+    //glDispatchCompute(1, FFT_N, 1);
+    //glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    //out_texture = pingpong_textures[1];
 
-    /*glUseProgram(fft_ifft_shader);
+    glUseProgram(fft_ifft_shader);
     glBindImageTexture(0, butterfly_indices_texture, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
     glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_N"), FFT_N);
     glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_Direction"), 0);
+    glUniform1i(glGetUniformLocation(fft_ifft_shader, "u_Step_max"), steps - 1);
     GLuint now_in = ht_texture;
     GLuint now_out = pingpong_textures[0];
     for (int i = 0; i < steps; i++) {
@@ -444,5 +445,5 @@ void ifft(GLuint ht_texture, GLuint* pingpong_textures, GLuint& out_texture) {
         now_in = now_out;
         now_out = pingpong_textures[0] == now_in ? pingpong_textures[1] : pingpong_textures[0];
     }
-    out_texture = now_in;*/
+    out_texture = now_in;
 }

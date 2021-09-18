@@ -61,6 +61,7 @@ layout (binding = 1, rgba16f) uniform image2D u_Ht_k;
 layout (binding = 2, rgba16f) uniform image2D u_Pingpong;
 
 uniform int u_Step;
+uniform int u_Step_max;
 uniform int u_N;
 uniform int u_Direction;
 
@@ -95,10 +96,30 @@ void main(void){
 		vec2 q = imageLoad(u_Ht_k, right_index).xy;
 
 		vec2 left_value = p + complex_multiply(w, q);
-		vec2 right_value = p - complex_multiply(w, q);	
-		
-		imageStore(u_Pingpong, left_index, vec4(left_value, 0.0f, 0.0f));
-		imageStore(u_Pingpong, right_index, vec4(right_value, 0.0f, 0.0f));
+		vec2 right_value = p - complex_multiply(w, q);
+		if (u_Step == u_Step_max) {
+			ivec2 left_store_index;
+			ivec2 right_store_index;
+			float e_left = 1.0f;
+			float e_right = 1.0f;
+			if (u_Direction > 0) {
+				left_store_index = ivec2(pos.y, left_index_in_butterfly);
+				right_store_index = ivec2(pos.y, right_index_in_butterfly);
+				if ((left_store_index.x + left_store_index.y) % 2 == 0) e_left = -1.0f;
+				if ((right_store_index.x + right_store_index.y) % 2 == 0) e_right = -1.0f;
+			}
+			else {
+				left_store_index = ivec2(left_index_in_butterfly, pos.y);
+				right_store_index = ivec2(right_index_in_butterfly, pos.y);
+			}
+
+			imageStore(u_Pingpong, left_store_index, vec4(e_left * left_value, 0.0f, 0.0f));
+			imageStore(u_Pingpong, right_store_index, vec4(e_right * right_value, 0.0f, 0.0f));
+		}
+		else {
+			imageStore(u_Pingpong, left_index, vec4(left_value, 0.0f, 0.0f));
+			imageStore(u_Pingpong, right_index, vec4(right_value, 0.0f, 0.0f));
+		}
 	}
 }
 )delimiter";
