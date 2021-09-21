@@ -7,7 +7,7 @@
 #define PI 3.1415926
 #define G 9.81
 
-const int FFT_N = 256;
+const int FFT_N = 512;
 const float FFT_L = 400.0f;
 const vec2 FFT_W = normalize(vec2(1.0f, 1.0f));
 const float FFT_V = 40.0f;

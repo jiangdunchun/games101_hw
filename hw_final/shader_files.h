@@ -185,9 +185,10 @@ void main(void){
 	vec3 ddz = zpos_displacement - zneg_displacement;
 
 	float jacobian = (1.0f + ddx.x) * (1.0f + ddz.z) - ddx.z * ddz.x;
+	float bubble = clamp(1.0f - jacobian, 0.0f, 1.0f);
 
 	imageStore(u_Normal, pos, vec4(normal.x, normal.z, normal.y, 0.0f));
-	imageStore(u_Bubble, pos, vec4(jacobian, 0.0f, 0.0f, 0.0f));
+	imageStore(u_Bubble, pos, vec4(bubble, bubble, bubble, 0.0f));
 }
 )delimiter";
 
@@ -414,8 +415,17 @@ void main() {
 	vec3 V = normalize(uView_pos - position);
 	vec3 R = reflect(-1.0f * V, N);
 
-	vec3 light = texture(uSky, R).rgb;
-    fColor = light;
+	float F = pow(1.0f - max(0.0f, dot(N, V)), 1);
+	F = clamp(F, 0.0f, 1.0f);
+
+	vec3 diffuse = vec3(0.004f, 0.016f, 0.047f);
+	vec3 specular = texture(uSky, R).rgb;
+
+	vec3 color = F * 2.0f * specular + (1.0f - F) * diffuse;
+	
+	float bubble = texture(uBubble, tex_coord).r;
+
+    fColor = bubble * vec3(1.0f, 1.0f, 1.0f) + (1.0f - bubble) * color;
 }
 )delimiter";
 
