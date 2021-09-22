@@ -418,12 +418,12 @@ void main() {
 	float F = pow(1.0f - max(0.0f, dot(N, V)), 1);
 	F = clamp(F, 0.0f, 1.0f);
 
-	vec3 diffuse = vec3(0.004f, 0.016f, 0.047f);
+	vec3 diffuse = vec3(0.04f, 0.16f, 0.47f);
 	vec3 specular = texture(uSky, R).rgb;
 
-	vec3 color = F * 2.0f * specular + (1.0f - F) * diffuse;
+	vec3 color = F * specular + (1.0f - F) * diffuse;
 	
-	float bubble = texture(uBubble, tex_coord).r;
+	float bubble = 10.0f * texture(uBubble, tex_coord).r;
 
     fColor = bubble * vec3(1.0f, 1.0f, 1.0f) + (1.0f - bubble) * color;
 }

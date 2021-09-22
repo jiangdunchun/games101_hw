@@ -11,7 +11,7 @@ const int FFT_N = 512;
 const float FFT_L = 400.0f;
 const vec2 FFT_W = normalize(vec2(1.0f, 1.0f));
 const float FFT_V = 40.0f;
-const float FFT_A = 10.0f;
+const float FFT_A = 20.0f;
 
 const float zoom = 90.0f;
 const float z_near = 0.1f;
@@ -87,7 +87,7 @@ const vector<unsigned int> sky_indices = {
 float timer = 0.0f;
 unsigned int scr_width = 800;
 unsigned int scr_height = 600;
-vec3 camera_position = vec3(0.0f, 100.0f, 300.0f);
+vec3 camera_position = vec3(0.0f, 100.0f, 200.0f);
 vec3 camera_rotation = vec3(-30.0f, 0.0f, 0.0f);
 mat4 view;
 mat4 projection;
