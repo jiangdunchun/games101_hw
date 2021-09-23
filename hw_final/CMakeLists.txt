@@ -1,33 +1,21 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.10)
+
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 14)
-project(FFT_water_simulation)
-if("!${CMAKE_SYSTEM_NAME}" STREQUAL "!Windows")
-    include_directories(${PROJECT_SOURCE_DIR}/include/)
-    link_directories(${PROJECT_SOURCE_DIR}/lib/)
-elseif("!${CMAKE_SYSTEM_NAME}" STREQUAL "!Linux")
-    find_package(glfw3 REQUIRED)
-endif()
+set(CMAKE_CXX_STANDARD 11)
 
-file(GLOB project_file glad.c main.cpp)
-add_executable(${PROJECT_NAME} ${project_file})
+project(fft_water_simulation)
 
-if("!${CMAKE_SYSTEM_NAME}" STREQUAL "!Windows")
-    include_directories(${PROJECT_SOURCE_DIR}/include/)
-    link_directories(${PROJECT_SOURCE_DIR}/lib/)
-    target_link_libraries(${PROJECT_NAME} glfw)
-elseif("!${CMAKE_SYSTEM_NAME}" STREQUAL "!Linux")
-    target_link_libraries(${PROJECT_NAME}
-    -lglfw
-    -lGL
-    -lm
-    -lXrandr
-    -lXi
-    -lX11
-    -lXxf86vm
-    -lpthread
-    -ldl
-    -lXinerama
-    -lXcursor)
-endif()
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/assert
+     DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
+add_subdirectory(./third_party)
+
+include_directories(${STB_INCLUDE_DIR})
+include_directories(${GLM_INCLUDE_DIR})
+include_directories(${GLAD_INCLUDE_DIR})
+include_directories(${GLFW_INCLUDE_DIR})
+
+add_executable(fft_water_simulation ./main.cpp)
+
+target_link_libraries(fft_water_simulation glad glfw)
 
