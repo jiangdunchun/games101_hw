@@ -129,16 +129,12 @@ $normal$ 的计算我使用了便于理解的差分法，虽然精度不高。
 
 $bubble$ 的计算我们使用了雅可比行列式，可参考[[4]](#refer-anchor-4)的 5.2.1。
 
-# image
+## 结果展示
+
+![](images/fft.gif)
 
 
-# development
-## evironment
-```
-sudo sh install.sh
-```
-
-## build and run
+## 编译与运行
 ```
 // build
 mkdir build 
@@ -147,10 +143,10 @@ cmake ..
 make
 
 // run
-./FFT_water_simulation
+./fft_water_simulation
 ```
 
-# reference
+## 引用
 
 <div id="refer-anchor-1"></div>
 
