@@ -1,3 +1,7 @@
+*本文中包含公式，某些markdown解析器可能不支持，可使用vs code的 markdown 插件打开。*
+
+*结果见 fft.mp4。*
+
 # 基于FFT的海面渲染
 
 ## 简介
@@ -40,7 +44,7 @@ $$
 
 其中:
 
-> $\vec{x}$ $=(x, z)$ 是改定在在 x-z 平面的坐标
+> $\vec{x}$ $=(x, z)$ 是该点在 x-z 平面的坐标
 
 > $t$ 是时间
 
@@ -135,16 +139,8 @@ $bubble$ 的计算我们使用了雅可比行列式，可参考[[4]](#refer-anch
 
 
 ## 编译与运行
-```
-// build
-mkdir build 
-cd build
-cmake ..
-make
+开发环境为 windows + vs code + cmake。
 
-// run
-./fft_water_simulation
-```
 
 ## 引用
 
